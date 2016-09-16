@@ -1,0 +1,67 @@
+# Example ``/etc/rws/hosts/<<HOSTNAME>>'' configuration file. You
+# need one of these files for every virtual host you serve (although
+# you can use symbolic links to save time) plus one file called ``default''
+# which is used for when the client doesn't send a ``Host:'' HTTP header.
+
+# The document root.
+
+alias /
+	# Path to the document root.
+	path:		/var/www
+
+	# Allow files to be viewed.
+	show:		1
+
+	# Do directory listings.
+	list:		1
+end alias
+
+# Example CGI directory.
+
+alias /cgi-bin/
+
+	path:		/path/to/cgi/scripts
+
+	# Allow CGI scripts to be executed in here. Note that
+	# show and list are both off by default.
+
+	exec:		1
+
+end alias
+
+# Example shared object scripts directory (see doc/index.html).
+
+alias /so-bin/
+
+	path:		/path/to/so/files
+
+	# Allow shared object scripts to be executed in here. Note
+	# that show and list are both of by default.
+
+	exec so:	1
+
+end alias
+
+# Rewrite rules applying to this host.
+
+begin rewrite
+
+# Rules apply in order. Use 'last' flag on a rule to cause execution
+# to finish at that rule if it matches.
+
+# Simple rewrite rule (external: the browser gets a redirect instruction).
+#^/default.html$ /index.html   external
+
+# Simple rewrite rule (internal: browser is unaware of the redirect).
+#^/default.html$ /index.html
+
+# Monolith parsed pages (demonstrating the use of $1, $2, ... placeholders).
+# 'qsa' appends the original query string (if any) to the end of the
+# rewritten URL.
+#^/annexia/(.*\.msp)$    /so-bin/msp.so?page=$1  last,qsa
+#^/annexia/$             /annexia/index.msp      qsa
+#^/annexia/(.*)/$        /annexia/$1/index.msp   qsa
+
+# Conditional rewrite rules are not yet implemented.
+
+end rewrite

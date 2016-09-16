@@ -1,0 +1,489 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+  <head>
+    <title>rws documentation index</title>
+    <style type="text/css"><!--
+      h1 {
+      text-align: center;
+      }
+      pre {
+      background-color: #eeeeff;
+      }
+      code {
+      color: green;
+      font-weight: bold;
+      }
+      --></style>
+  </head>
+
+  <body bgcolor="#ffffff">
+    <h1>rws documentation index</h1>
+
+    <h2>Shared object scripts</h2>
+
+    <p>
+      Shared object scripts are a possibly unique feature of <code>rws</code>.
+      A shared object script is a CGI script, written in C, which
+      is loaded into the address space of the server at runtime.
+      Thus shared object scripts are very fast because they are
+      written in C, loaded just once, and able to run without
+      needing a <code>fork(2)</code>.
+    </p>
+
+    <p>
+      On the other hand, the penalty for speed is security, although
+      competent C programmers who are using all the features of
+      <a href="http://www.annexia.org/freeware/c2lib/">c2lib</a> and
+      <a href="http://www.annexia.org/freeware/pthrlib/">pthrlib</a>
+      should be able to write code which is free of buffer overflows
+      and some other common security issues. (However if you allow
+      your server to run shared object scripts from untrusted
+      third parties, then you have essentially no security at all, since
+      shared object scripts can interfere with the internal workings
+      of the webserver in arbitrary ways).
+    </p>
+
+    <h3>The anatomy of a shared object script</h3>
+
+    <p>
+      A shared object script is a <q><code>.so</code></q>
+      file (in other words, a shared library or <q>DLL</q>).
+      It should contain a single external symbol called
+      <code>handle_request</code>, prototyped as:
+    </p>
+
+<pre>
+int handle_request (rws_request rq);
+</pre>
+
+    <p>
+      The <code>rws_request</code> object is defined in
+      <code>rws_request.h</code>.
+    </p>
+
+    <p>
+      The first time that any client requests the shared
+      object script, <code>rws</code> calls <code>dlopen(3)</code>
+      on the file. As noted in the <code>dlopen(3)</code>
+      manual page, this will cause <code>_init</code> and any
+      constructor functions in the file to be run.
+      Then <code>rws</code> creates the <code>rws_request</code>
+      object (see below) and calls <code>handle_request</code>.
+      The shared object script remains loaded in memory
+      after <code>handle_request</code> has returned, ready
+      for the next invocation.
+    </p>
+
+    <p>
+      On subsequent invocations, <code>dlopen(3)</code> is
+      <em>not</em> called, so constructors only run once.
+    </p>
+
+    <p>
+      However, on each invocation, <code>rws</code> checks the
+      modification time of the file on disk, and if it has
+      changed, then it will attempt to reload the file. To
+      do this, it calls <code>dlclose(3)</code> first, which
+      will cause <code>_fini</code> and destructors in the
+      library to run, and unloads the library from memory. It
+      then reopens (<code>dlopen(3)</code>) the new file on
+      disk, as above. Beware that there are some occasions when
+      <code>rws</code> actually cannot reload a shared object
+      script, even though it notices that the file has changed
+      on disk. <code>rws</code> keeps a use count of the number
+      of threads currently using the shared object script, and
+      for safety reasons it cannot reload the file until this
+      usage count drops to zero. This means that in some cases
+      (eg. under very heavy load) a shared object script might
+      never be reloaded, even if it changes on disk.
+    </p>
+
+    <h3>Configuring rws to recognise shared object scripts</h3>
+
+    <p>
+      <code>rws</code> will not try to run shared object scripts
+      unless the <code>exec so</code> flag has been set on the
+      alias, and the shared object script itself is executable (mode 0755).
+      Here is an example shared object scripts directory:
+    </p>
+
+<pre>
+alias /so-bin/
+	path: /usr/share/rws/so-bin
+	exec so: 1
+end alias
+</pre>
+
+    <p>
+      Make sure that the <code>so-bin</code> directory is only
+      writable by trusted users, and make sure each shared object
+      script is executable, mode 0755.
+    </p>
+
+    <p>
+      If you can't make your shared object scripts run, then here
+      is a checklist before you email me:
+    </p>
+
+    <ul>
+      <li> Make sure you have put the above alias section into
+	the correct host file.
+      <li> <code>exec so</code> option is set?
+      <li> Restarted <code>rwsd</code>?
+      <li> Directory is world readable, executable (mode 0755)?
+      <li> Shared object script is world readable, executable (mode 0755)?
+      <li> Any unresolved symbols (<code>ldd -r script.so</code>), apart
+	from the <code>rws_request_*</code> symbols which will be resolved
+	when the library is loaded into <code>rws</code>?
+      <li> Missing <code>handle_request</code> function?
+      <li> <code>handle_request</code> is exported in the dynamic
+	symbol table (<code>nm -D script.so</code>)?
+      <li> Check the contents of your error_log file to see
+	if any error messages were reported.
+    </ul>
+
+    <p>
+      I have quite successfully used <code>gdb</code> on a running
+      server to debug and diagnose problems in shared object
+      scripts. However note that by default <code>gdb</code> may
+      have trouble loading the symbol table for your script. Use
+      the <code>sharedlibrary script.so</code>
+      command to load symbols instead.
+    </p>
+
+    <h3>Shared object scripts vs. Monolith applications</h3>
+
+    <p>
+      If you've been looking at the
+      <a href="http://www.annexia.org/freeware/monolith/">Monolith
+	application framework</a> pages, then you may be confused
+      about how shared object scripts relate to Monolith.
+    </p>
+
+    <p>
+      Shared object scripts are the direct analogy to CGI scripts,
+      the only difference being that CGI scripts are usually written
+      in very high level languages like Perl and PHP, and shared
+      object scripts are loaded into the server process for efficiency.
+      (Perl CGI scripts can also be loaded into the Apache
+      server process using <code>mod_perl</code>, and this is done
+      for similar reasons of efficiency).
+    </p>
+
+    <p>
+      Monolith programs are entire applications, the sort of
+      thing which normally would be written using dozens of
+      cooperating CGI scripts. In the case of Monolith, however,
+      the entire application compiles down to a single <code>.so</code>
+      file which happens to be (you guessed it) a shared object script.
+    </p>
+
+    <p>
+      Imagine that you are going to write yet another web-based email
+      client. For some reason you want to write this in C (please
+      don't try this at home: I wrote one in Perl at my last job and
+      that was hard enough). Here are three possible approaches
+      using C and <code>rws</code>:
+    </p>
+
+    <ol>
+      <li>
+	<p>
+	  Write forty or so shared object scripts. Each displays
+	  a single frame of the application, one might generate
+	  the frameset, a couple of dozen to implement specific
+	  operations like emptying trash or moving a message between
+	  folders.
+	</p>
+	<p>
+	  This is very much the normal way of writing CGI-based
+	  applications.
+	</p>
+      <li> Write a Monolith application. This will probably be
+	in lots of C files, but will compile down and be linked
+	into a single <code>.so</code> file (eg. <code>email.so</code>)
+	which is dropped into the <code>so-bin</code> directory.
+      <li>
+	<p>
+	  Write a Monolith email super-widget. This is going
+	  to exist in a shared library called
+	  <code>/usr/lib/libmyemail.so</code>
+	  with a corresponding header file defining the interface
+	  called <code>myemail.h</code>.
+	</p>
+	<p>
+	  Write a tiny Monolith application which just instantiates
+	  a window and an email widget, and embeds the email widget
+	  in the window. This will compile into <code>email.so</code>
+	  (it'll be very tiny) which is dropped into <code>so-bin</code>.
+	</p>
+	<p>
+	  The advantage of this final approach is that you can
+	  reuse the email widget in other places, or indeed sell
+	  it to other Monolith users.
+	</p>
+    </ol>
+
+    <p>
+      So Monolith is good when you want to build applications
+      from widgets as you would if you were building a
+      Java/Swing, Windows MFC, gtk, Tcl/Tk graphical application.
+      It's also good if code re-use is important to you.
+      Shared object scripts are good when you are familiar with
+      CGI-based techniques to build websites.
+    </p>
+
+    <p>
+      Of course, the same <code>rws</code> server can serve
+      shared object scripts, multiple Monolith applications,
+      flat files, and directory listings, all at the same time.
+    </p>
+
+    <h3>Tutorial on writing shared object scripts</h3>
+
+    <p>
+      In this tutorial I will explain how the two shared object
+      script examples supplied with <code>rws</code> work. You
+      will also need to have read the tutorials for
+      <a href="http://www.annexia.org/freeware/c2lib/">c2lib</a> and
+      <a href="http://www.annexia.org/freeware/pthrlib/">pthrlib</a>
+      which you can find by going to their respective web pages.
+    </p>
+
+    <p>
+      The first example, <code>hello.c</code> is very simple indeed.
+      It's just a "hello world" program. The program starts by
+      including <code>rws_request.h</code>:
+    </p>
+
+<pre>
+#include &lt;rws_request.h&gt;
+</pre>
+
+    <p>
+      Following this is the <code>handle_request</code>
+      function. This is the function which <code>rws</code>
+      will call every time a user requests the script:
+    </p>
+
+<pre>
+int
+handle_request (rws_request rq)
+{
+  pseudothread pth = rws_request_pth (rq);
+  http_request http_request = rws_request_http_request (rq);
+  io_handle io = rws_request_io (rq);
+
+  int close;
+  http_response http_response;
+
+  /* Begin response. */
+  http_response = new_http_response (pth, http_request, io,
+				     200, "OK");
+  http_response_send_headers (http_response,
+			      /* Content type. */
+			      "Content-Type", "text/plain",
+			      /* End of headers. */
+			      NULL);
+  close = http_response_end_headers (http_response);
+
+  if (http_request_is_HEAD (http_request)) return close;
+
+  io_fprintf (io, "hello, world!");
+
+  return close;
+}
+</pre>
+
+    <p>
+      We first extract some fields from the <code>rws_request</code>
+      object. <code>rws</code> has already taken the time to
+      parse the HTTP headers from the client, but we need to
+      generate the reply headers (shared object scripts
+      are always "nph" -- no parsed headers). The
+      <code>pthrlib</code> functions
+      <code>new_http_response</code>,
+      <code>http_response_send_headers</code> and
+      <code>http_response_end_headers</code> do this. Note
+      that we send a <code>Content-Type: text/plain</code>
+      header. You must always generate a correct
+      <code>Content-Type</code> header.
+    </p>
+
+    <p>
+      If the original request was a <code>HEAD</code> request, then
+      the client only wants to see the headers, so we stop here.
+    </p>
+
+    <p>
+      Otherwise we generate our message and return.
+    </p>
+
+    <p>
+      NB. Don't call <code>io_fclose</code> on the I/O handle! If you
+      really want to force the connection to close, set the
+      <code>close</code> variable to 1 and return it. This is
+      because the client (or proxy) might be issuing several
+      separate HTTP requests over the same kept-alive TCP connection.
+    </p>
+
+    <p>
+      The second example, <code>show_params.c</code>, is just slightly
+      more complex, but demonstrates how to do parameter parsing.
+      After reading this you should have enough knowledge to
+      go away and write your own shared object scripts that
+      actually do useful stuff.
+    </p>
+
+    <p>
+      As before, we start by including a few useful headers:
+    </p>
+
+<pre>
+#include &lt;pool.h&gt;
+#include &lt;vector.h&gt;
+#include &lt;pthr_cgi.h&gt;
+
+#include &lt;rws_request.h&gt;
+</pre>
+
+    <p>
+      The <code>handle_request</code> function starts the same way
+      as before:
+    </p>
+
+<pre>
+int
+handle_request (rws_request rq)
+{
+  pool pool = rws_request_pool (rq);
+  pseudothread pth = rws_request_pth (rq);
+  http_request http_request = rws_request_http_request (rq);
+  io_handle io = rws_request_io (rq);
+</pre>
+
+    <p>
+      Then we define some variables that we're going to use:
+    </p>
+
+<pre>
+  cgi cgi;
+  int close, i;
+  http_response http_response;
+  vector headers, params;
+  struct http_header header;
+  const char *name, *value;
+</pre>
+
+    <p>
+      The actual job of parsing out the CGI parameters is simplified
+      because <code>pthrlib</code> contains a CGI library
+      (similar to Perl's <code>CGI.pm</code>):
+    </p>
+
+<pre>
+  /* Parse CGI parameters. */
+  cgi = new_cgi (pool, http_request, io);
+</pre>
+
+    <p>
+      The response phase begins by sending the HTTP
+      headers as before:
+    </p>
+
+<pre>
+  /* Begin response. */
+  http_response = new_http_response (pth, http_request, io,
+				     200, "OK");
+  http_response_send_headers (http_response,
+			      /* Content type. */
+			      "Content-Type", "text/plain",
+			      /* End of headers. */
+			      NULL);
+  close = http_response_end_headers (http_response);
+
+  if (http_request_is_HEAD (http_request)) return close;
+</pre>
+
+    <p>
+      Now we print out the actual contents of both the
+      <code>http_request</code> object and the <code>cgi</code>
+      object. HTTP headers first:
+    </p>
+
+<pre>
+  io_fprintf (io, "This is the show_params shared object script.\r\n\r\n");
+  io_fprintf (io, "Your browser sent the following headers:\r\n\r\n");
+
+  headers = http_request_get_headers (http_request);
+  for (i = 0; i &lt; vector_size (headers); ++i)
+    {
+      vector_get (headers, i, header);
+      io_fprintf (io, "\t%s: %s\r\n", header.key, header.value);
+    }
+
+  io_fprintf (io, "----- end of headers -----\r\n");
+</pre>
+
+    <p>
+      The full URL (including the query string), the path alone,
+      the query string:
+    </p>
+
+<pre>
+  io_fprintf (io, "The URL was: %s\r\n",
+	      http_request_get_url (http_request));
+  io_fprintf (io, "The path component was: %s\r\n",
+	      http_request_path (http_request));
+  io_fprintf (io, "The query string was: %s\r\n",
+	      http_request_query_string (http_request));
+  io_fprintf (io, "The query arguments were:\r\n");
+</pre>
+
+    <p>
+      Finally we print out the CGI parameters from the <code>cgi</code>
+      object:
+    </p>
+
+<pre>
+  params = cgi_params (cgi);
+  for (i = 0; i &lt; vector_size (params); ++i)
+    {
+      vector_get (params, i, name);
+      value = cgi_param (cgi, name);
+      io_fprintf (io, "\t%s=%s\r\n", name, value);
+    }
+
+  io_fprintf (io, "----- end of parameters -----\r\n");
+
+  return close;
+}
+</pre>
+
+    <h2>Further examples</h2>
+
+    <p>
+      That's the end of this tutorial. I hope you enjoyed it. Please
+      contact the author about corrections or to obtain more information.
+    </p>
+
+    <h2>Links to manual pages</h2>
+
+    <ul>
+      <li> <a href="rws_request_canonical_path.3.html"><code>rws_request_canonical_path(3)</code></a> </li>
+      <li> <a href="rws_request_file_path.3.html"><code>rws_request_file_path(3)</code></a> </li>
+      <li> <a href="rws_request_host_header.3.html"><code>rws_request_host_header(3)</code></a> </li>
+      <li> <a href="rws_request_http_request.3.html"><code>rws_request_http_request(3)</code></a> </li>
+      <li> <a href="rws_request_io.3.html"><code>rws_request_io(3)</code></a> </li>
+      <li> <a href="rws_request_pool.3.html"><code>rws_request_pool(3)</code></a> </li>
+      <li> <a href="rws_request_pth.3.html"><code>rws_request_pth(3)</code></a> </li>
+    </ul>
+
+    <hr>
+    <address><a href="mailto:rich@annexia.org">Richard Jones</a></address>
+<!-- Created: Wed May  1 19:36:16 BST 2002 -->
+<!-- hhmts start -->
+Last modified: Wed Oct  9 20:02:40 BST 2002
+<!-- hhmts end -->
+  </body>
+</html>

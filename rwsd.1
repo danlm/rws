@@ -1,0 +1,97 @@
+.TH rwsd 1 "October 22, 2002" "GNU" "Programmer's Manual"
+
+.SH NAME
+rwsd \- a small, fast web server
+
+.SH SYNOPSIS
+.B rwsd
+[\fI\-p port\fR] [\fI\-C configpath\fR]
+[\fI\-d\fR] [\fI\-f\fR] [\fI\-a address\fR]
+
+.SH DESCRIPTION
+\fBrwsd\fR is a small, fast web server, written in C, but with a
+very comprehensible and straightforward design. It uses a lightweight
+threading library called \fBpthrlib\fR (so it runs as a single process)
+and a set of basic data types for C called \fBc2lib\fR.
+
+.SH "COMMAND LINE OPTIONS"
+.TP
+\fB\-p port\fR
+listen on the given port (default is to listen on port 80)
+.TP
+\fB\-C configpath\fR
+find configuration files under path (default is \fB/etc/rws/\fR)
+.TP
+\fB\-d\fR
+do not send stderr to the \fBerror_log\fR file (used when debugging)
+.TP
+\fB\-f\fR
+do not fork into the background (used when debugging)
+.TP
+\fB\-a address\fR
+bind only to the given interface (default is to bind to all interfaces)
+
+.SH CONFIGURATION
+The server is configured through files in the \fB/etc/rws/\fR
+directory. The main configuration file is \fB/etc/rws/rws.conf\fR
+and virtual hosts are configured using files in
+\fB/etc/rws/hosts/\fR\fIhostname\fR, for each virtual host
+\fIhostname\fR.
+
+
+
+
+
+
+.SH "RUNNING THE SERVER"
+To start the server running, log in as root and do:
+.PP
+.B /usr/sbin/rwsd
+.PP
+To stop the server running, do:
+.PP
+.B killall rwsd
+.PP
+A SysV start up script is also installed by default, if you prefer
+to use that method for starting and stopping the service. Do:
+.PP
+.B /etc/init.d/rws.rc start
+.PP
+or:
+.PP
+.B /etc/init.d/rws.rc stop
+.PP
+\fBrws\fR cannot run from \fBinetd\fR.
+
+.SH "HTML FILES"
+
+.SH "DIRECTORIES"
+
+.SH "CGI SCRIPTS"
+
+.SH "SHARED OBJECT SCRIPTS"
+
+
+.SH FILES
+\fB/etc/rws/rws.conf\fR
+.PP
+\fB/etc/rws/hosts/default\fR
+.PP
+\fB/etc/rws/hosts/\fR\fIhostname\fR
+
+.SH "SEE ALSO"
+\fBnew_pool\fP(3),
+\fBnew_pseudothread\fP(3).
+.PP
+\fBhttp://www.annexia.org/freeware/rws/\fP
+
+.SH AUTHOR
+The primary author is Richard W.M. Jones <\fBrich@annexia.org\fR>.
+
+.SH COPYRIGHT
+Copyright \(co 2000-2002 Richard W.M. Jones <\fBrich@annexia.org\fR>.
+
+.SH LICENSE
+This software is licensed under the terms of the GNU Library General Public
+License (GNU LGPL). Please see the file \fBCOPYING.LIB\fR which
+accompanies the source distribution.

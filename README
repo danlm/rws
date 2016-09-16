@@ -1,0 +1,92 @@
+rws - a fast, small and efficient web server written in C
+written by Richard Jones <rich@annexia.org>
+
+GENERAL INFO
+------------
+
+``rws'' is yet another web server. This one offers the advantage
+that it is both cleanly written internally, as well as simple,
+and, of course, very fast. Current features include:
+
+* Serves files.
+* Memory-mapped file cache.
+* Serves directory listings.
+* Supports virtual hosts.
+* Supports aliases.
+* CGI scripts (NPH scripts only).
+* Shared object scripts (see below).
+* Access and error logs.
+
+The following are the features that I intend to add before I
+declare that ``rws'' is complete:
+
+* Run CGI scripts as a local user (similar to Apache suexec).
+* IP-based access control.
+* Manual pages.
+
+INSTALLATION INSTRUCTIONS
+-------------------------
+
+You must install c2lib and pthrlib libraries first. Get these
+from:
+
+	c2lib		http://www.annexia.org/freeware/c2lib/
+	pthrlib		http://www.annexia.org/freeware/pthrlib/
+
+If you are having problems with ``rws'', make sure that you
+have the latest versions of these libraries installed before
+reporting any errors to me.
+
+Build it:
+
+	./configure --sysconfdir=/etc
+	make
+
+Install it (as root):
+
+	make install
+
+As configured above the server installs itself as /usr/local/sbin/rwsd,
+and expects to find configuration files in the /etc/rws directory.
+
+Create a configuration directory:
+
+	mkdir /etc/rws
+	cp example-rws.conf /etc/rws/rws.conf
+
+	mkdir /etc/rws/hosts
+	cp example-host /etc/rws/hosts/`hostname`
+	cd /etc/rws/hosts
+	ln -s `hostname` default
+
+Edit /etc/rws/rws.conf (which is the global level configuration file)
+as appropriate for your site.
+
+Edit /etc/rws/hosts/<<HOSTNAME>> (replace <<HOSTNAME>> with the
+hostname of your machine). Note that by default, the document root
+is set to /tmp, which is probably not what you want :-)
+
+Start up the web server:
+
+	/usr/local/sbin/rwsd
+
+These are early days. If you find a bug, please report it to me
+by mailing rich@annexia.org. Please include a complete description.
+
+FAQ
+---
+
+1. The web server seems to have loads of memory leaks! It just sits
+   there sucking up more and more memory.
+
+   A. Not so. The web server stores a cache of memory mapped files,
+      making it quicker to serve the same file subsequent times.
+      Unfortunately top(1) or ps(1) count the memory mapped files
+      against the size of the process, even though they are never
+      really loaded into memory. To get a real picture of what's
+      going on, look at /proc/<<PID>>/maps and /proc/<<PID>>/fd/
+      (replace <<PID>> with the process ID of ``rws'').
+
+2. What's all this about shared object scripts and .so files?
+
+   A. See doc/index.html

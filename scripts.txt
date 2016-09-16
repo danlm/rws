@@ -1,0 +1,50 @@
+Starting scripts
+
+Always start with:
+
+ #!/usr/bin/perl -w -T
+ use strict;
+
+ $ENV{SHELL} = "/bin/sh";
+ $ENV{PATH} = "/usr/bin:/bin";
+ delete @ENV{qw(IFS CDPATH ENV BASH_ENV)};
+
+ use CGI;
+ $CGI::POST_MAX = 100000;
+ $CGI::DISABLE_UPLOADS = 1;
+
+The ``-w'' option warns about common errors. The ``-T'' option turns on taint checking. The ``use strict'' enforces various strict Perl semantics, making you less likely to make mistakes.
+
+The $ENV stuff cleans up and secures the environment.
+
+The CGI stuff limits the HTTP POST to 100K (enough for almost all parameters) and disables file uploads which can also be used as a denial of service attack against the script.
+
+Installing scripts
+
+Make CGI scripts have mode 0555 (and ensure the directory is read-only, NOT writable). Unfortunately because suexec'd CGI scripts run with the same owner as the owner of the actual file containing the script, if ``they'' can trick the script into writing onto itself or writing another file into the same directory, then they can create an arbitrary script. Which means someone has just remotely taken over your account. Which means it's only a short while before they find a local root exploit and take over the machine. So chmod 0555 the CGI directory and the scripts right now - you know it makes sense. (See also below).
+
+Check for errors in the appropriate error log in /var/log/httpd/ Scripts should run with no warnings (particularly with no warnings about ``use of uninitialized variable'' which indicates a dangerous error).
+
+Remove backup (*~) files, since they can be used to run older versions of your CGI scripts unintentionally.
+
+Don't edit CGI scripts live. If you've installed your CGI scripts correctly with mode 0555 then this isn't even possible. Instead edit and test them in another directory, and when you're ready to go live, do:
+
+install -c -m 555 script.pl my/path/to/cgi-bin/
+which installs the script atomically with the correct 0555 mode.
+
+Data
+
+Never store data in disk files. Use the database instead. Using disk files to store data is a recipe for introducing new and wonderful security holes. Besides the database avoids race conditions and other locking problems. In addition when your application becomes popular, you'll be glad you used a database so you can spread your webserver load across multiple servers.
+
+Taint checking is your friend and not your enemy. You rarely need to untaint variables - in fact if you ever untaint a variable that almost certainly indicates a mistake in your program logic. For example, in the Postmaster free email service, we only needed to use untainting in one place.
+
+In general, don't use external programs. In particular don't invoke external programs with arguments derived from user-input parameters.
+
+eg. This is OK (no arguments):
+
+my $id = `id`;
+but this is a security hole:
+
+my $filename = $q->param ("filename");
+system "touch $filename";
+(in this case taint checking will spot the mistake, but you shouldn't be using disk files anyway ...)

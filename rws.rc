@@ -1,0 +1,52 @@
+#!/bin/sh
+#
+# rws      This shell script takes care of starting and stopping rws.
+#
+# chkconfig: 2345 80 30
+# description: RWS is a webserver
+# processname: rwsd
+# config: /etc/rws/rws.conf
+# pidfile: /var/run/rws.pid
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+[ ${NETWORKING} = "no" ] && exit 0
+
+[ -f /usr/sbin/rwsd ] || exit 0
+
+# See how we were called.
+case "$1" in
+  start)
+	# Start daemons.
+
+	echo -n "Starting rws: "
+	daemon /usr/sbin/rwsd
+	echo
+	touch /var/lock/subsys/rws
+	;;
+  stop)
+	# Stop daemons.
+	echo -n "Shutting down rws: "
+	killproc rwsd
+	echo
+	rm -f /var/lock/subsys/rws
+	;;
+  restart)
+	$0 stop
+	$0 start
+	;;
+  status)
+	status rwsd
+	;;
+  *)
+	echo "Usage: rws.rc {start|stop|restart|status}"
+	exit 1
+esac
+
+exit 0
+
